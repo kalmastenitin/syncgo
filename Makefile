@@ -5,7 +5,7 @@ MODULE  := github.com/syncgo/syncgo
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-LDFLAGS := -X main.version=$(VERSION)
+LDFLAGS := -X main.version=$(VERSION) 
 
 .PHONY: tools generate build test run demo lint
 
