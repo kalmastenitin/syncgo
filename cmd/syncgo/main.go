@@ -15,11 +15,7 @@ import (
 	"github.com/syncgo/syncgo/pkg/metrics"
 )
 
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-)
+var version = "dev"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -30,7 +26,7 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "version":
-		err = runVersion(os.Args[2:])
+		err = runVersion()
 	case "prepare":
 		err = runPrepare(os.Args[2:])
 	case "run":
@@ -50,14 +46,8 @@ func main() {
 	}
 }
 
-func runVersion(args []string) error {
-	fs := flag.NewFlagSet("version", flag.ContinueOnError)
-
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	fmt.Printf("syncgo %s (commit %s, built %s)\n", version, commit, date)
+func runVersion() error {
+	fmt.Printf("syncgo %s\n", version)
 	return nil
 }
 
@@ -77,18 +67,21 @@ func run(args []string) error {
 
 	cfg, err := config.LoadFromYAML(cfgPath)
 	if err != nil {
-		return fmt.Errorf("load config: %w", err)
+		slog.Error("failed to load config", slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 
 	monitoring := metrics.New(nil)
 
 	p, err := processor.New(ctx, cfg, monitoring)
 	if err != nil {
-		return fmt.Errorf("failed initialize processor: %w", err)
+		slog.Error("failed to initialize processor", slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 
 	if err := p.Run(ctx); err != nil {
-		return fmt.Errorf("processor run failed: %w", err)
+		slog.Error("processor run failed", slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 
 	slog.Info("syncgo stopped successfully")
