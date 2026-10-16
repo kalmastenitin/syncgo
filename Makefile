@@ -2,10 +2,8 @@ include e2e/e2e.mk
 
 GOBIN := $(shell pwd)/bin
 MODULE  := github.com/syncgo/syncgo
-
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-
-LDFLAGS := -X main.version=$(VERSION) 
+VERSION := dev
+LDFLAGS := -X main.version=$(VERSION)
 
 .PHONY: tools generate build test run demo lint
 
@@ -27,7 +25,7 @@ test:
 	go test ./... -v -short
 
 run: build
-	./bin/syncgo $(ARGS)
+	./bin/syncgo
 
 demo: build prepare
 	./bin/syncgo --config ./e2e/config.yaml

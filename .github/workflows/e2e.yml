@@ -39,7 +39,7 @@ jobs:
       - name: Run syncgo binary
         run: ./syncgo run --config e2e/config.yaml > syncgo.log 2>&1 &
 
-      - name: Insert, update and delete tests
+      - name: E2E testing
         run: go test -v -tags e2e -timeout 5m ./e2e/pipeline/...
 
       - name: Show syncgo logs
@@ -76,8 +76,8 @@ jobs:
             -v "$PWD/e2e/config.docker.yaml:/etc/syncgo/config.yaml" \
             syncgo:e2e run --config /etc/syncgo/config.yaml
 
-      - name: E2E tests 
-        run: go test -v -tags e2e -timeout 5m ./e2e/...
+      - name: E2E testing
+        run: go test -v -tags e2e -timeout 5m ./e2e/pipeline/...
 
       - name: Show syncgo logs
         if: failure()
@@ -102,7 +102,7 @@ jobs:
       - name: Start services
         run: docker compose -f e2e/docker-compose.yml up -d --wait --wait-timeout 300
 
-      - name: "E2E tests (in-process: elastic & opensearch)"
+      - name: E2E testing
         run: go test -v -tags e2e -timeout 5m ./e2e/elastic/... ./e2e/opensearch/...
 
       - name: Stop services
