@@ -87,27 +87,3 @@ generate_data:
 	docker exec -i e2e-postgres-1 \
 	  psql -U postgres -d postgres \
 	  -c "DELETE FROM test WHERE id = 3;"
-
-
-binary_test: build prepare
-	@echo ">>> binary_test: launching syncgo binary";
-	@set -e; \
-	trap 'kill $$SYNC_PID 2>/dev/null || true; \
-		docker compose -f "$(E2E_COMPOSE_FILE)" down -v' EXIT; \
-	./bin/syncgo run --config ./e2e/config.yaml > /tmp/syncgo-e2e.log 2>&1 & SYNC_PID=$$!; \
-	$(MAKE) --no-print-directory wait_slot_active; \
-	set +e; $(E2E_TEST); STATUS=$$?; set -e; \
-	exit $$STATUS
-
-docker_test: prepare
-	@echo ">>> docker test: building and running syncgo image";
-	@set -e; \
-	docker build -t syncgo:e2e .; \
-	docker rm -f syncgo 2>/dev/null || true; \
-	trap 'docker rm -f syncgo 2>/dev/null || true; \
-	docker compose -f "$(E2E_COMPOSE_FILE)" down -v' EXIT; \
-	docker run -d --name syncgo --network e2e_syncgo-network \
-	-v "$$PWD/e2e/config.docker.yaml:/etc/syncgo/config.yaml" syncgo:e2e; \
-	$(MAKE) --no-print-directory wait_slot_active; \
-	set +e; ${E2E_TEST}; STATUS=$$?; set -e; \
-	exit $$STATUS
