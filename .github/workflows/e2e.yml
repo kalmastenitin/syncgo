@@ -33,31 +33,11 @@ jobs:
       - name: Start services
         run: docker compose -f e2e/docker-compose.yml up -d --wait --wait-timeout 300
 
-      - name: Create table and publication
-        run: |
-          docker compose -f e2e/docker-compose.yml exec -T postgres \
-            psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
-          CREATE TABLE IF NOT EXISTS test (id int primary key, name text);
-          CREATE PUBLICATION test_publication FOR TABLE public.test;
-          SQL
-
       - name: Build syncgo binary
         run: go build -o syncgo ./cmd/syncgo
 
       - name: Run syncgo binary
         run: ./syncgo run --config e2e/config.yaml > syncgo.log 2>&1 &
-
-      - name: Wait for replication slot
-        run: |
-          for i in $(seq 1 60); do
-            active=$(docker compose -f e2e/docker-compose.yml exec -T postgres \
-              psql -U postgres -d postgres -tAc \
-              "SELECT active FROM pg_replication_slots WHERE slot_name='test_slot'")
-            if [ "$active" = "t" ]; then exit 0; fi
-            sleep 1
-          done
-          echo "replication slot did not become active"
-          exit 1
 
       - name: Insert, update and delete tests
         run: go test -v -tags e2e -timeout 5m ./e2e/pipeline/...
@@ -86,14 +66,6 @@ jobs:
       - name: Start services
         run: docker compose -f e2e/docker-compose.yml up -d --wait --wait-timeout 300
 
-      - name: Create table and publication
-        run: |
-          docker compose -f e2e/docker-compose.yml exec -T postgres \
-            psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
-          CREATE TABLE IF NOT EXISTS test (id int primary key, name text);
-          CREATE PUBLICATION test_publication FOR TABLE public.test;
-          SQL
-
       - name: Build syncgo image
         run: docker build -t syncgo:e2e .
 
@@ -104,20 +76,8 @@ jobs:
             -v "$PWD/e2e/config.docker.yaml:/etc/syncgo/config.yaml" \
             syncgo:e2e run --config /etc/syncgo/config.yaml
 
-      - name: Wait for replication slot
-        run: |
-          for i in $(seq 1 60); do
-            active=$(docker compose -f e2e/docker-compose.yml exec -T postgres \
-              psql -U postgres -d postgres -tAc \
-              "SELECT active FROM pg_replication_slots WHERE slot_name='test_slot'")
-            if [ "$active" = "t" ]; then exit 0; fi
-            sleep 1
-          done
-          echo "replication slot did not become active"
-          exit 1
-
-      - name: Insert, update and delete tests
-        run: go test -v -tags e2e -timeout 5m ./e2e/pipeline/...
+      - name: E2E tests 
+        run: go test -v -tags e2e -timeout 5m ./e2e/...
 
       - name: Show syncgo logs
         if: failure()
