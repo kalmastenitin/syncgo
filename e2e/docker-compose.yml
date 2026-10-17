@@ -2,6 +2,14 @@ services:
   postgres:
     image: postgres:18-alpine
     restart: unless-stopped
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_replication_slots=10"
     ports:
       - "5432:5432"
     environment:
@@ -10,6 +18,7 @@ services:
       POSTGRES_DB: postgres
     volumes:
       - postgres_data:/var/lib/postgresql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 10s
@@ -47,9 +56,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    networks:
+      - syncgo-network
 
   opensearch:
-    image: opensearchproject/opensearch:2.18.0
+    image: opensearchproject/opensearch:2.18.0 # for grpc support need to update to version >= 3.2
     restart: unless-stopped
     environment:
       - discovery.type=single-node
@@ -76,6 +87,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    networks:
+      - syncgo-network
 
 volumes:
   postgres_data:

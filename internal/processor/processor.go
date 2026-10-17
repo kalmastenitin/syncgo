@@ -14,6 +14,7 @@ import (
 	"github.com/syncgo/syncgo/internal/replication"
 	"github.com/syncgo/syncgo/pkg/config"
 	"github.com/syncgo/syncgo/pkg/http_client"
+	"github.com/syncgo/syncgo/pkg/logger"
 	"github.com/syncgo/syncgo/pkg/metrics"
 	"github.com/syncgo/syncgo/pkg/postgresql"
 	"github.com/syncgo/syncgo/pkg/search_engine_client"
@@ -36,7 +37,7 @@ type Processor struct {
 	shutdownErr  error
 }
 
-func New(parentCtx context.Context, cfg *config.Config, monitoring *metrics.SearchMetrics) (*Processor, error) {
+func New(parentCtx context.Context, cfg *config.Config, monitoring *metrics.Metrics) (*Processor, error) {
 	initCtx, cancel := context.WithTimeout(parentCtx, initTimeout)
 	defer cancel()
 
@@ -45,9 +46,9 @@ func New(parentCtx context.Context, cfg *config.Config, monitoring *metrics.Sear
 		return nil, err
 	}
 
-	b := initBatcher(parentCtx, cfg.Batcher, client)
+	b := initBatcher(parentCtx, cfg.Batcher, client, monitoring)
 
-	replicationConn, err := initReplication(initCtx, cfg, b)
+	replicationConn, err := initReplication(initCtx, cfg, b, monitoring)
 	if err != nil {
 		return nil, err
 	}
@@ -110,8 +111,8 @@ func (p *Processor) shutdown() error {
 	return errors.Join(errs...)
 }
 
-func initBatcher(ctx context.Context, cfg config.BatcherConfig, sender batcher.BulkSender) *batcher.Batcher {
-	b := batcher.NewBatcher(ctx, cfg.Size, cfg.FlushInterval, sender)
+func initBatcher(ctx context.Context, cfg config.BatcherConfig, sender batcher.BulkSender, monitoring *metrics.Metrics) *batcher.Batcher {
+	b := batcher.NewBatcher(ctx, cfg.Size, cfg.FlushInterval, sender, monitoring)
 
 	slog.Info("batcher initialized",
 		slog.Int("size", cfg.Size),
@@ -121,7 +122,7 @@ func initBatcher(ctx context.Context, cfg config.BatcherConfig, sender batcher.B
 	return b
 }
 
-func initClient(ctx context.Context, cfg config.SearchEngineConfig, monitoring *metrics.SearchMetrics) (*search_engine_client.Client, error) {
+func initClient(ctx context.Context, cfg config.SearchEngineConfig, monitoring *metrics.Metrics) (*search_engine_client.Client, error) {
 	client, err := search_engine_client.New(ctx, search_engine_client.Config{
 		Name:              cfg.Name,
 		Address:           cfg.Address,
@@ -134,14 +135,14 @@ func initClient(ctx context.Context, cfg config.SearchEngineConfig, monitoring *
 		KeepAlive:         searchKeepAliveToClient(cfg.KeepAlive),
 	}, monitoring)
 	if err != nil {
-		slog.Error("failed to create search engine client", slog.String("error", err.Error()))
+		logger.Error("failed to create search engine client", err)
 		return nil, err
 	}
 
 	return client, nil
 }
 
-func initReplication(ctx context.Context, cfg *config.Config, b *batcher.Batcher) (*replication.LogicalReplicationConn, error) {
+func initReplication(ctx context.Context, cfg *config.Config, b *batcher.Batcher, monitoring *metrics.Metrics) (*replication.LogicalReplicationConn, error) {
 	pgCfg := postgresql.Config{
 		User:     cfg.PostgreSQL.User,
 		Password: cfg.PostgreSQL.Password,
@@ -152,7 +153,7 @@ func initReplication(ctx context.Context, cfg *config.Config, b *batcher.Batcher
 
 	conn, err := postgresql.New(ctx, pgCfg)
 	if err != nil {
-		slog.Error("failed to create postgresql connection", slog.String("error", err.Error()))
+		logger.Error("failed to create postgresql connection", err)
 		return nil, err
 	}
 
@@ -196,7 +197,7 @@ func startMetricsServer(cfg *config.Config) *http.Server {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("metrics server failed", slog.String("err", err.Error()))
+			logger.Error("metrics server failed", err)
 		}
 	}()
 
